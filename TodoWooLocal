@@ -1,0 +1,151 @@
+import mysql.connector
+import sys
+import time
+
+mydb = mysql.connector.connect(
+    host='127.0.0.1',
+    user='root',
+    password='admin',
+    database='todolist'
+)
+
+cursor = mydb.cursor()
+formulas = {
+    "signup": "Insert into users(Username, Password) values(%s, %s);",
+    "login": "Select * from users where Username = %s and Password = %s;",
+    "todos": "Select Title, Memo, is_important from todos where user = %s and is_Completed is false;",
+    "add_todo": 'insert into todos(Title, Memo, user, is_important, is_Completed) values(%s, %s, %s, %s, %s);',
+    "complete": 'update todos set is_completed = true where todo_key = %s;',
+    "complete_list": 'Select * from todos where user = %sand is_Completed is false;'
+}
+
+
+def signup():
+    while True:
+        try:
+            user = input("Choose a suitable username\t:")
+            password = input('Choose an unique password\t:')
+            cursor.execute(formulas["signup"], (user, password))
+            mydb.commit()
+            break
+        except mysql.connector.errors.DataError:
+            print('Too long data, try using somthing more memorable!')
+    print('User created epicly! Use login to access the fullest of this application')
+    time.sleep(2)
+    redirect("signup")
+    return
+
+
+def login():
+    while True:
+        user = input("Username\t:")
+        password = input('Password\t:')
+
+        cursor.execute(formulas["login"], (user, password))
+        result = cursor.fetchone()
+
+        if result is None:
+            print("Invalid username or password! Try again.")
+        else:
+            redirect("login", user)
+            break
+
+
+def redirect(from_where, optional_parameter1=None, optional_parameter2=None):
+    if from_where == 'login':
+        list_todos(optional_parameter1)
+
+    elif from_where == "list":
+        if optional_parameter1 == "add":
+            add_Todo(optional_parameter2)
+        elif optional_parameter1 == 'complete':
+            complete_todo(optional_parameter2)
+        elif optional_parameter1 == 'main':
+            main('leave')
+
+    elif from_where == 'complete':
+        list_todos(optional_parameter1)
+
+    elif from_where == 'main':
+        if optional_parameter1 == "signup":
+            signup()
+        elif optional_parameter1 == "login":
+            login()
+
+    elif from_where == 'signup':
+        main()
+
+    elif from_where == "add":
+        list_todos(optional_parameter1)
+
+
+def list_todos(user):
+    cursor.execute(formulas["todos"], (user,))
+    for i in cursor:
+        todo = str(i[0]) + '\t\t\t' + str(i[1])
+        if i[2] == 1:
+            print("Important", todo)
+        else:
+            print('\t\t', todo)
+    choice = input("Add a new todo or complete an existing todo or exit the application?(a/c/leave)\t:")
+
+    if choice.lower() == 'a':
+        redirect("list", "add", user)
+    elif choice.lower() == 'c':
+        redirect('list', 'complete', user)
+    elif choice.lower() == 'leave':
+        redirect('list', 'main')
+
+
+def add_Todo(user):
+    title = input("Add a suitable title to your todo\t:")
+    memo = input("Explain the todo(optional)\t:")
+    while True:
+        is_imp = input("Is this todo important?(y/n)\t:")
+        if is_imp.lower() == 'y':
+            is_imp = True
+            break
+        elif is_imp.lower() == 'n':
+            is_imp = False
+            break
+        else:
+            print("Invalid Choice!")
+    is_comp = False
+    cursor.execute(formulas["add_todo"], (title, memo, user, is_imp, is_comp))
+    mydb.commit()
+    print('Todo added epicly!')
+    time.sleep(4)
+    redirect("add", user)
+
+
+def complete_todo(user):
+    cursor.execute(formulas["complete_list"], (user,))
+    todos = []
+    for i in cursor:
+        todos.append(i)
+        print(len(todos), i[1], i[2])
+
+    if len(todos) == 0:
+        print("You have already completed all todos. Good Job!")
+        redirect("complete", user)
+    else:
+        choice = int(input(f'Which one did you complete(1-{len(todos)}?'))
+        cursor.execute(formulas["complete"], (todos[choice-1][0],))
+        mydb.commit()
+        print(f'Completed {todos[choice-1][1]}')
+        redirect("complete", user)
+
+
+def main(op=None):
+    if op is None:
+        while True:
+            choice = input('SignUp or LogIn?(s/l):\t')
+            if choice.lower() == 's':
+                redirect('main', 'signup')
+            elif choice.lower() == 'l':
+                redirect('main', 'login')
+    else:
+        sys.exit()
+
+
+main()
